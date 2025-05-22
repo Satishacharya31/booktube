@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./app # Path to Next.js app
+      dockerfile: Dockerfile.dev # We'll need to create this Dockerfile later
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./app:/usr/src/app # Mounts the app directory for hot reloading
+      - /usr/src/app/node_modules # Excludes node_modules from being overwritten by the host
+      - /usr/src/app/.next # Excludes .next from being overwritten
+    environment:
+      - NODE_ENV=development
+      # Add any other Next.js specific env vars here, prefixed if needed
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api # Example
+    depends_on:
+      - backend
+    networks:
+      - booktube_network
+
+  backend:
+    build:
+      context: ./server # Path to Express backend
+      dockerfile: Dockerfile.dev # We'll need to create this Dockerfile later
+    ports:
+      - "3001:3001" # Exposing SERVER_PORT
+    volumes:
+      - ./server:/usr/src/app # Mounts the server directory for hot reloading
+      - /usr/src/app/node_modules # Excludes node_modules
+      - /usr/src/app/dist # Excludes build output
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - SERVER_PORT=3001
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - booktube_network
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-booktube}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-booktubepass}
+      - POSTGRES_DB=${POSTGRES_DB:-booktube_dev}
+    networks:
+      - booktube_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - booktube_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  booktube_network:
+    driver: bridge
